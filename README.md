@@ -46,6 +46,10 @@ Monitor live voltage, current, power and temperature; graph and export telemetry
 
 The included firmware uses the following mapping:
 
+![SK150C serial communication and temperature connector pinout](docs/sk150c-serial-connector.png)
+
+The four-pin serial connector is labelled, from top to bottom in the image: `+5V`, `TX`, `RX`, `GND`. The adjacent two-pin connector marked `-` and `+` is for the external temperature probe, not serial communication.
+
 | SK150C serial connector | ESP32-C3 |
 |---|---|
 | TX | GPIO5 (RX) |
@@ -163,6 +167,8 @@ Hard-refresh the dashboard (`Ctrl+F5`) so the newest JavaScript replaces any old
 ```text
 dist/                 Static dashboard/PWA
 docs/dashboard.png    Project screenshot
+docs/sk150c-serial-connector.png
+                      SK150C serial/temperature connector reference
 esp32-bridge/         PlatformIO ESP32-C3 firmware
 start-dashboard.ps1   Windows local web-server launcher
 ```
