@@ -1,0 +1,17 @@
+{
+  "name": "SK150C Bench Console",
+  "short_name": "SK150C",
+  "description": "Local monitoring, logging, automation and control for the SK150C bench power supply.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#071016",
+  "theme_color": "#081117",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

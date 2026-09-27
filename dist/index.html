@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#081117" />
+    <meta name="description" content="Local monitoring, logging, automation and control for the SK150C bench power supply." />
+    <title>SK150C Bench Console</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23081117'/%3E%3Cpath d='M16 34h11l4-15 7 27 4-12h7' fill='none' stroke='%235ee7d0' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 42 42"><path d="M7 23h8l3-12 6 22 4-10h7" /></svg></div>
+          <div><p class="eyebrow">Bench console</p><h1>SK150C</h1></div>
+        </div>
+        <div class="top-actions">
+          <div class="connection-state is-offline" id="connectionState"><span class="state-dot"></span><span id="connectionLabel">Not connected</span></div>
+          <button class="button button-primary" id="connectButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8m-4-4v8M5 5a10 10 0 1 0 14 14A10 10 0 0 0 5 5Z" /></svg>Connect PSU</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="meter-strip" aria-label="Live measurements">
+          <article class="meter meter-voltage"><div class="meter-heading"><span>Output voltage</span><span class="live-tag">READY</span></div><div class="meter-value"><strong id="voltageReading">—</strong><span>V</span></div><div class="meter-foot"><span>Set</span><b id="voltageSetReadout">— V</b></div></article>
+          <article class="meter meter-current"><div class="meter-heading"><span>Output current</span><span class="live-tag">READY</span></div><div class="meter-value"><strong id="currentReading">—</strong><span>A</span></div><div class="meter-foot"><span>Set</span><b id="currentSetReadout">— A</b></div></article>
+          <article class="meter meter-power"><div class="meter-heading"><span>Output power</span><span class="live-tag">READY</span></div><div class="meter-value"><strong id="powerReading">—</strong><span>W</span></div><div class="meter-foot"><span>Input</span><b id="inputReading">— V</b></div></article>
+          <article class="meter meter-status"><div class="meter-heading"><span>Operating state</span></div><div class="state-readout"><span class="mode-badge" id="modeBadge">—</span><strong id="outputStateLabel">Awaiting PSU</strong></div><div class="meter-foot"><span>Protection</span><b id="protectionReadout">—</b></div></article>
+        </section>
+
+        <nav class="app-nav" aria-label="Console views">
+          <button class="active" type="button" data-view-target="monitor">Monitor</button>
+          <button type="button" data-view-target="automation">Automation</button>
+          <button type="button" data-view-target="presets">Presets &amp; memory</button>
+          <button type="button" data-view-target="calibration">Calibration</button>
+          <button type="button" data-view-target="device">Device</button>
+        </nav>
+
+        <section class="app-view active" data-view="monitor">
+          <section class="session-strip" aria-label="Session summary">
+            <div><span>Session</span><strong id="sessionDuration">00:00:00</strong></div>
+            <div><span>Delivered</span><strong id="sessionAh">0.000 Ah</strong></div>
+            <div><span>Energy</span><strong id="sessionWh">0.000 Wh</strong></div>
+            <div><span>Internal</span><strong id="internalTemp">— °C</strong></div>
+            <div><span>External</span><strong id="externalTemp">— °C</strong></div>
+            <div><span>Samples</span><strong id="sampleCount">0</strong></div>
+          </section>
+
+          <div class="workspace-grid">
+            <section class="panel telemetry-panel">
+              <div class="panel-heading telemetry-heading">
+                <div><p class="eyebrow">Telemetry</p><h2>Output history</h2></div>
+                <div class="heading-actions">
+                  <div class="range-picker" aria-label="Chart time range">
+                    <button type="button" data-range="60">1m</button><button type="button" data-range="300" class="active">5m</button><button type="button" data-range="900">15m</button><button type="button" data-range="3600">1h</button><button type="button" data-range="21600">6h</button><button type="button" data-range="86400">24h</button>
+                  </div>
+                  <button class="icon-button" id="exportCsvButton" type="button">Export CSV</button>
+                </div>
+              </div>
+              <div class="chart-stack">
+                <article class="chart-card chart-voltage"><div class="chart-title"><span><i></i>Voltage</span><b id="chartVoltageNow">— V</b></div><canvas id="voltageChart" aria-label="Voltage history chart"></canvas><div class="chart-scale"><span id="voltageMin">— V</span><span id="voltageMax">— V</span></div></article>
+                <article class="chart-card chart-current"><div class="chart-title"><span><i></i>Current</span><b id="chartCurrentNow">— A</b></div><canvas id="currentChart" aria-label="Current history chart"></canvas><div class="chart-scale"><span id="currentMin">— A</span><span id="currentMax">— A</span></div></article>
+                <article class="chart-card chart-power"><div class="chart-title"><span><i></i>Power</span><b id="chartPowerNow">— W</b></div><canvas id="powerChart" aria-label="Power history chart"></canvas><div class="chart-scale"><span id="powerMin">— W</span><span id="powerMax">— W</span></div></article>
+                <article class="chart-card chart-temperature">
+                  <div class="chart-title"><span><i></i>External probe temperature</span><b id="chartTemperatureNow">— °C</b></div>
+                  <div class="temperature-legend" aria-label="Temperature chart legend">
+                    <span class="probe-temperature"><i></i>External probe</span>
+                    <span class="internal-temperature"><i></i>PSU internal <b id="chartInternalTemperatureNow">— °C</b></span>
+                  </div>
+                  <canvas id="temperatureChart" aria-label="External probe and PSU internal temperature history chart"></canvas>
+                  <div class="chart-scale"><span id="temperatureMin">— °C</span><span id="temperatureMax">— °C</span></div>
+                </article>
+              </div>
+              <div class="stats-row" id="statsRow">
+                <span>V avg <b id="averageVoltage">—</b></span><span>A avg <b id="averageCurrent">—</b></span><span>W peak <b id="peakPower">—</b></span><span>V min/max <b id="voltageRange">—</b></span>
+                <button class="text-button danger-text" id="clearLogButton" type="button">Clear local history</button>
+              </div>
+            </section>
+
+            <aside class="control-column">
+              <section class="panel control-panel">
+                <div class="panel-heading control-heading"><div><p class="eyebrow">Output control</p><h2>Set voltage &amp; current</h2></div><div class="pending-pill" id="pendingPill">Local values</div></div>
+                <div class="dial-grid">
+                  <div class="dial-control"><div class="dial dial-v" id="voltageDial" role="slider" tabindex="0" aria-label="Voltage setpoint" aria-valuemin="0.5" aria-valuemax="40" aria-valuenow="5"><div class="dial-ticks"></div><div class="dial-face"><span>VOLTAGE</span><strong id="voltageDialValue">5.00</strong><small>volts</small></div></div><label for="voltageInput">Exact voltage</label><div class="number-field"><input id="voltageInput" type="number" min="0.5" max="40" step="0.01" value="5.00" inputmode="decimal" /><span>V</span></div></div>
+                  <div class="dial-control"><div class="dial dial-a" id="currentDial" role="slider" tabindex="0" aria-label="Current limit" aria-valuemin="0" aria-valuemax="15" aria-valuenow="1"><div class="dial-ticks"></div><div class="dial-face"><span>CURRENT LIMIT</span><strong id="currentDialValue">1.000</strong><small>amps</small></div></div><label for="currentInput">Exact current</label><div class="number-field"><input id="currentInput" type="number" min="0" max="15" step="0.001" value="1.000" inputmode="decimal" /><span>A</span></div></div>
+                </div>
+                <div class="power-envelope"><div><span>Setpoint envelope</span><strong id="setpointPower">5.0 W</strong></div><div class="envelope-bar"><span id="envelopeFill"></span></div><p id="envelopeNote">Within the 150 W rated envelope.</p></div>
+                <button class="button button-apply" id="applyButton" type="button" disabled>Apply setpoints</button>
+                <button class="button button-danger emergency-control" id="emergencyStop" type="button" disabled>Stop output</button>
+                <button class="output-hold" id="outputButton" type="button" aria-pressed="false" disabled><span class="hold-progress"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v9m6.36-5.36a9 9 0 1 1-12.72 0" /></svg><span><strong>Output unavailable</strong><small>Connect to control</small></span></button>
+              </section>
+              <section class="panel preset-panel"><div class="panel-heading compact-heading"><div><p class="eyebrow">Quick select</p><h2>Presets</h2></div><div class="segmented" role="tablist" aria-label="Preset category"><button type="button" class="active" data-preset-tab="bench">Bench</button><button type="button" data-preset-tab="charge">Charge</button></div></div><div class="preset-grid" id="presetGrid"></div><p class="safety-note hidden" id="chargeNote"><svg viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.3 3.8 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" /></svg>Verify chemistry, cell count, current and BMS before applying. This PSU is not a charge controller.</p></section>
+              <section class="panel memory-panel"><div><p class="eyebrow">Device memory</p><h2>Recall a stored profile</h2></div><div class="memory-row"><div class="memory-slots" id="memorySlots" aria-label="Memory slot"></div><button class="button button-secondary" id="recallButton" type="button" disabled>Recall</button></div><p>Recalls one of the PSU’s M0–M10 hardware memory groups.</p></section>
+            </aside>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="automation">
+          <div class="feature-grid">
+            <section class="panel feature-panel wide-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Programmable output</p><h2>Sequence runner</h2></div><div class="status-chip" id="sequenceStatus">Idle</div></div>
+              <div class="automation-toolbar">
+                <label>Recipe<select id="sequenceRecipe"><option value="custom">Custom</option><option value="rails">Common rails</option><option value="burnin">Burn-in</option><option value="cycle">Power cycle</option></select></label>
+                <label>Cycles<input id="sequenceCycles" type="number" min="1" max="100" value="1" /></label>
+                <label class="check-field"><input id="sequenceOffAtEnd" type="checkbox" checked /> Output off when finished</label>
+                <button class="button button-secondary" id="addSequenceStep" type="button">Add step</button>
+              </div>
+              <div class="table-wrap"><table class="sequence-table"><thead><tr><th>Action</th><th>Voltage</th><th>Current</th><th>Hold</th><th>Ramp</th><th></th></tr></thead><tbody id="sequenceBody"></tbody></table></div>
+              <div class="sequence-progress"><div><span id="sequenceProgressLabel">No sequence running</span><b id="sequenceCountdown">—</b></div><div class="envelope-bar"><span id="sequenceProgressFill"></span></div></div>
+              <div class="button-row"><button class="button button-primary" id="startSequence" type="button">Start sequence</button><button class="button button-secondary" id="stopSequence" type="button" disabled>Stop safely</button></div>
+            </section>
+
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Assisted charging</p><h2>Battery session</h2></div><span class="mode-badge compact-mode" id="batteryPhase">IDLE</span></div>
+              <p class="warning-banner">Bench-supply assistance only. Always use the correct BMS and independent temperature protection.</p>
+              <div class="form-grid two-col">
+                <label>Chemistry<select id="batteryChemistry"><option value="liion">Li-ion · 4.20 V/cell</option><option value="lifepo4">LiFePO₄ · 3.65 V/cell</option><option value="sla">Lead acid · 2.40 V/cell</option><option value="nimh">NiMH test · 1.45 V/cell</option></select></label>
+                <label>Cells<input id="batteryCells" type="number" min="1" max="12" value="1" /></label>
+                <label>Capacity<input id="batteryCapacity" type="number" min="0.05" max="200" step="0.05" value="2.00" /><span>Ah</span></label>
+                <label>Charge rate<input id="batteryRate" type="number" min="0.05" max="2" step="0.05" value="0.25" /><span>C</span></label>
+                <label>Cutoff current<input id="batteryCutoff" type="number" min="0.01" max="15" step="0.01" value="0.10" /><span>A</span></label>
+                <label>Max temperature<input id="batteryMaxTemp" type="number" min="20" max="100" step="1" value="45" /><span>°C</span></label>
+                <label>Timeout<input id="batteryTimeout" type="number" min="1" max="48" step="0.5" value="4" /><span>h</span></label>
+                <label>Capacity cutoff<input id="batteryCapacityLimit" type="number" min="0" max="300" step="1" value="110" /><span>%</span></label>
+              </div>
+              <div class="battery-target"><span>Target</span><strong id="batteryTarget">4.20 V · 0.500 A</strong></div>
+              <div class="progress-ring-row"><div class="progress-ring" id="batteryProgressRing"><strong id="batteryProgress">0%</strong></div><div><span>Delivered</span><strong id="batteryDelivered">0.000 Ah</strong><small id="batteryElapsed">00:00:00 elapsed</small></div></div>
+              <div class="button-row"><button class="button button-primary" id="startBattery" type="button">Start assisted session</button><button class="button button-secondary" id="stopBattery" type="button" disabled>Stop</button></div>
+            </section>
+
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Guard rails</p><h2>Alarms &amp; automatic stop</h2></div><span class="status-chip" id="alarmStatus">Armed locally</span></div>
+              <div class="form-grid two-col">
+                <label>Current warning<input id="alarmCurrent" type="number" min="0" max="15" step="0.1" value="0" /><span>A</span></label>
+                <label>Input voltage floor<input id="alarmInputVoltage" type="number" min="0" max="60" step="0.1" value="0" /><span>V</span></label>
+                <label>Temperature warning<input id="alarmTemperature" type="number" min="0" max="120" step="1" value="55" /><span>°C</span></label>
+                <label>Alarm cooldown<input id="alarmCooldown" type="number" min="5" max="600" step="5" value="30" /><span>s</span></label>
+              </div>
+              <div class="switch-list">
+                <label><input id="alarmSound" type="checkbox" checked /><span>Sound in this browser</span></label>
+                <label><input id="alarmModeTransition" type="checkbox" checked /><span>Notify on CV ↔ CC transition</span></label>
+                <label><input id="alarmAutoDisable" type="checkbox" /><span>Disable output when a configured threshold trips</span></label>
+              </div>
+              <div class="button-row"><button class="button button-secondary" id="enableNotifications" type="button">Enable desktop notifications</button><button class="button button-secondary" id="testAlarm" type="button">Test alarm</button></div>
+              <div class="event-log" id="eventLog" aria-live="polite"><p>No events this session.</p></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="presets">
+          <div class="feature-grid">
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Local library</p><h2>Named presets</h2></div><div class="button-row tight"><button class="icon-button" id="exportPresets" type="button">Export</button><button class="icon-button" id="importPresets" type="button">Import</button><input class="hidden" id="presetFile" type="file" accept="application/json" /></div></div>
+              <form class="preset-form" id="presetForm"><label>Name<input id="presetName" required maxlength="32" placeholder="ESP32 dev board" /></label><label>Voltage<input id="presetVoltage" type="number" min="0.5" max="40" step="0.01" value="5.00" /></label><label>Current<input id="presetCurrent" type="number" min="0" max="15" step="0.001" value="1.000" /></label><button class="button button-primary" type="submit">Save preset</button></form>
+              <div class="library-grid" id="localPresetGrid"></div>
+            </section>
+
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Hardware memory</p><h2>Edit M0–M10</h2></div><div class="status-chip" id="memoryEditorStatus">Not loaded</div></div>
+              <div class="memory-slots large-slots" id="memoryEditorSlots" aria-label="Memory slot editor"></div>
+              <div class="form-grid three-col memory-editor">
+                <label>Local name<input id="memoryName" maxlength="24" placeholder="5 V logic" /></label>
+                <label>Voltage<input id="memoryVoltage" type="number" min="0.5" max="40" step="0.01" /><span>V</span></label>
+                <label>Current<input id="memoryCurrent" type="number" min="0" max="15" step="0.001" /><span>A</span></label>
+                <label>Input minimum<input id="memoryLvp" type="number" min="0" max="60" step="0.01" /><span>V</span></label>
+                <label>Output maximum<input id="memoryOvp" type="number" min="0" max="60" step="0.01" /><span>V</span></label>
+                <label>Current maximum<input id="memoryOcp" type="number" min="0" max="15" step="0.001" /><span>A</span></label>
+                <label>Power maximum<input id="memoryOpp" type="number" min="0" max="200" step="0.1" /><span>W</span></label>
+                <label>Temperature maximum<input id="memoryOtp" type="number" min="0" max="120" step="0.1" /><span>°C</span></label>
+              </div>
+              <div class="button-row"><button class="button button-secondary" id="loadMemoryEditor" type="button">Read slot</button><button class="button button-primary" id="saveMemoryEditor" type="button">Write slot</button><button class="button button-secondary" id="recallMemoryEditor" type="button">Recall slot</button></div>
+              <p class="subtle-copy">Names are stored in this browser. Electrical values are read from and written to the PSU’s hardware memory.</p>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="calibration">
+          <div class="calibration-intro panel">
+            <div>
+              <p class="eyebrow">Accuracy assistant</p>
+              <h2>Guided calibration</h2>
+              <p>Follow the SK150C’s built-in calibration screens with plain-language instructions and record the result here.</p>
+            </div>
+            <span class="status-chip">Guide only · no remote writes</span>
+          </div>
+
+          <div class="feature-grid calibration-grid">
+            <section class="panel feature-panel calibration-guide-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">Step-by-step</p><h2 id="calibrationGuideTitle">Voltage calibration</h2></div>
+                <span class="status-chip" id="calibrationProgress">0 of 7</span>
+              </div>
+              <div class="calibration-tabs" role="tablist" aria-label="Calibration type">
+                <button class="active" type="button" role="tab" aria-selected="true" data-calibration-type="voltage">Voltage</button>
+                <button type="button" role="tab" aria-selected="false" data-calibration-type="current">Current</button>
+                <button type="button" role="tab" aria-selected="false" data-calibration-type="zero">Zero point</button>
+                <button type="button" role="tab" aria-selected="false" data-calibration-type="temperature">Temperature</button>
+              </div>
+              <div class="calibration-equipment" id="calibrationEquipment"></div>
+              <p class="warning-banner calibration-warning" id="calibrationWarning"></p>
+              <ol class="calibration-steps" id="calibrationSteps"></ol>
+              <div class="button-row">
+                <button class="button button-secondary" id="resetCalibrationChecklist" type="button">Reset checklist</button>
+              </div>
+            </section>
+
+            <section class="panel feature-panel calibration-calculator">
+              <div class="panel-heading"><div><p class="eyebrow">Verification</p><h2>Measurement error</h2></div><span class="status-chip" id="calibrationResultStatus">Enter readings</span></div>
+              <p class="subtle-copy">“PSU displayed” is the value shown by the SK150C. “Reference” is the value measured by your trusted meter.</p>
+              <div class="calibration-measurement-group">
+                <h3>Before calibration</h3>
+                <div class="form-grid two-col">
+                  <label>PSU displayed<input id="calBeforeDisplayed" type="number" min="0" step="0.001" inputmode="decimal" /></label>
+                  <label>Reference meter<input id="calBeforeReference" type="number" min="0" step="0.001" inputmode="decimal" /></label>
+                </div>
+                <div class="calibration-result"><span>Error</span><strong id="calBeforeError">—</strong></div>
+              </div>
+              <div class="calibration-measurement-group">
+                <h3>After calibration</h3>
+                <div class="form-grid two-col">
+                  <label>PSU displayed<input id="calAfterDisplayed" type="number" min="0" step="0.001" inputmode="decimal" /></label>
+                  <label>Reference meter<input id="calAfterReference" type="number" min="0" step="0.001" inputmode="decimal" /></label>
+                </div>
+                <div class="calibration-result"><span>Error</span><strong id="calAfterError">—</strong></div>
+              </div>
+              <div class="calibration-improvement"><span>Change in absolute error</span><strong id="calImprovement">—</strong></div>
+              <label class="calibration-notes">Notes<textarea id="calibrationNotes" maxlength="240" placeholder="Meter used, load, temperature, or anything useful next time"></textarea></label>
+              <button class="button button-primary calibration-save" id="saveCalibrationRecord" type="button">Save result locally</button>
+            </section>
+
+            <section class="panel feature-panel wide-panel calibration-journal-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">Local record</p><h2>Calibration journal</h2></div>
+                <button class="icon-button" id="exportCalibrationJournal" type="button">Export CSV</button>
+              </div>
+              <p class="subtle-copy">Saved only in this browser. Nothing in this journal changes the PSU.</p>
+              <div class="calibration-journal" id="calibrationJournal"><p>No calibration results saved yet.</p></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="device">
+          <div class="feature-grid">
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Protection profile</p><h2>Limits</h2></div><label class="inline-select">Slot<select id="protectionSlot"></select></label></div>
+              <div class="form-grid two-col">
+                <label>Input under-voltage<input id="protectionLvp" type="number" step="0.01" /><span>V</span></label>
+                <label>Output over-voltage<input id="protectionOvp" type="number" step="0.01" /><span>V</span></label>
+                <label>Output over-current<input id="protectionOcp" type="number" step="0.001" /><span>A</span></label>
+                <label>Output over-power<input id="protectionOpp" type="number" step="0.1" /><span>W</span></label>
+                <label>Over-temperature<input id="protectionOtp" type="number" step="0.1" /><span>°C</span></label>
+              </div>
+              <div class="button-row"><button class="button button-secondary" id="readProtection" type="button">Read limits</button><button class="button button-primary" id="writeProtection" type="button">Apply limits</button></div>
+              <p class="subtle-copy">Protection edits are staged here and written only after Apply limits is selected.</p>
+            </section>
+
+            <section class="panel feature-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Device health</p><h2>Environment &amp; counters</h2></div><span class="status-chip" id="deviceHealth">Awaiting data</span></div>
+              <div class="detail-grid">
+                <div><span>Internal temperature</span><strong id="detailInternalTemp">—</strong></div><div><span>External probe</span><strong id="detailExternalTemp">—</strong></div><div><span>Accumulated capacity</span><strong id="detailAh">—</strong></div><div><span>Accumulated energy</span><strong id="detailWh">—</strong></div><div><span>Output duration</span><strong id="detailDuration">—</strong></div><div><span>Model / firmware</span><strong id="detailFirmware">—</strong></div><div><span>Address / baud code</span><strong id="detailConnection">1 / 6</strong></div><div><span>Protection state</span><strong id="detailProtection">—</strong></div>
+              </div>
+            </section>
+
+            <section class="panel feature-panel wide-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Connection</p><h2>USB or ESP32-C3 Wi-Fi bridge</h2></div><span class="status-chip">Transport ready</span></div>
+              <div class="connection-config">
+                <label>Transport<select id="transportSelect"><option value="serial">USB Web Serial</option><option value="http">ESP32 HTTP bridge</option><option value="websocket">ESP32 WebSocket bridge</option></select></label>
+                <label>Bridge address<input id="bridgeUrl" type="url" value="http://sk150c.local" /></label>
+                <label>Session token<input id="bridgeToken" type="password" autocomplete="off" placeholder="Optional" /></label>
+                <label class="check-field"><input id="readOnlyMode" type="checkbox" /> Read-only session</label>
+                <button class="button button-secondary" id="saveConnectionSettings" type="button">Save connection settings</button>
+                <button class="button button-secondary" id="installApp" type="button" disabled>Install app</button>
+              </div>
+              <div class="bridge-contract"><strong>ESP32 bridge contract</strong><code>POST /api/modbus</code><span>Binary Modbus frame in, binary frame out. WebSocket uses the same binary frames at <code>/ws</code>. The hostname works with mDNS when the ESP32 advertises <code>sk150c.local</code>.</span></div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer><span id="transportFooter">Local Web Serial · 115200 baud · Modbus RTU · address 1</span><span id="lastSample">Waiting for connection</span></footer>
+    </div>
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <script type="module" src="./app.js?v=11"></script>
+  </body>
+</html>
