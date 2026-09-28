@@ -48,7 +48,7 @@ The bridge implements:
 
 The UART is 115200 baud, 8-N-1. The HTTP endpoint checks frame length and Modbus CRC before forwarding a request. Error responses include received-byte diagnostics to distinguish wiring failures from corrupt serial replies.
 
-Wi-Fi transmit power is limited with `WiFi.setTxPower(WIFI_POWER_8_5dBm)`.
+Wi-Fi transmit power uses the ESP32-C3's normal maximum setting with `WiFi.setTxPower(WIFI_POWER_19_5dBm)` for reliable connections inside an enclosure.
 
 ## OTA updates
 

@@ -218,7 +218,7 @@ void handleStatus() {
   body += "\",\"setupMode\":";
   body += setupPortalActive ? "true" : "false";
   body += ",\"wifiStatus\":" + String(static_cast<int>(WiFi.status()));
-  body += ",\"uart\":{\"rx\":" + String(PSU_UART_RX_PIN) + ",\"tx\":" + String(PSU_UART_TX_PIN) + ",\"baud\":115200},\"wifiPowerDbm\":8.5,\"ota\":";
+  body += ",\"uart\":{\"rx\":" + String(PSU_UART_RX_PIN) + ",\"tx\":" + String(PSU_UART_TX_PIN) + ",\"baud\":115200},\"wifiPowerDbm\":19.5,\"ota\":";
   body += otaEnabled ? "true" : "false";
   body += ",\"updatePath\":\"/update\"}";
   sendText(200, "application/json", body);
@@ -281,7 +281,7 @@ void handleSaveWifi() {
 
 void startSetupPortal() {
   WiFi.mode(WIFI_AP_STA);
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   WiFi.softAP(kSetupSsid);
   dnsServer.start(53, "*", WiFi.softAPIP());
   setupPortalActive = true;
@@ -295,7 +295,7 @@ void startConnectedServices() {
     WiFi.softAPdisconnect(true);
     setupPortalActive = false;
   }
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   if (!mdnsActive) {
     mdnsActive = MDNS.begin(kHostname);
     if (mdnsActive) MDNS.addService("http", "tcp", 80);
@@ -359,7 +359,7 @@ void connectWifi() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(kHostname);
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
   WiFi.setAutoReconnect(true);
   if (!wifiSsid.isEmpty()) {
     WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
