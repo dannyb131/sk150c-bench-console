@@ -150,6 +150,12 @@ Wi-Fi is working, but the PSU did not reply electrically. Check:
 
 Try the IP address shown by your router or the USB serial monitor. Ensure the computer and ESP32 are on the same network and that multicast DNS is not blocked.
 
+### `SK150C-Setup` keeps returning
+
+The bridge could not join the saved network. Test with a nearby phone hotspot configured for 2.4 GHz/compatibility mode and a simple temporary name and password. If that works, check the normal router for WPA3-only security, weak signal, band steering, a hidden SSID or an unsupported 2.4 GHz channel.
+
+Current firmware keeps the setup access point available while retrying the saved network every 30 seconds. With a token configured, recovery firmware updates are also available while connected to **SK150C-Setup**: open `http://192.168.4.1/update`, enter the existing bridge token and upload `esp32-bridge/firmware-update.bin`.
+
 ### Readings are exactly 10x too large
 
 Hard-refresh the dashboard (`Ctrl+F5`) so the newest JavaScript replaces any older service-worker cache.

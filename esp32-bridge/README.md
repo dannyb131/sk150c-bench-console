@@ -56,6 +56,8 @@ Build the firmware, open `http://sk150c.local/update`, choose `.pio/build/esp32-
 
 Arduino/PlatformIO OTA is also available on port 3232. The OTA password is the bridge token. OTA remains disabled until a non-empty token has been configured.
 
+If the saved network is unavailable, the bridge exposes **SK150C-Setup** and continues retrying the station connection every 30 seconds. The token-protected browser updater remains available in recovery mode at `http://192.168.4.1/update`, so a bad Wi-Fi configuration does not require opening the enclosure. The status endpoint includes `setupMode` and the numeric Arduino `wifiStatus` value for diagnostics.
+
 ## Security notes
 
 - Wi-Fi credentials and the token are stored in ESP32 Preferences/NVS, not in source code.

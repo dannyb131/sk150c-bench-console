@@ -22,7 +22,8 @@ namespace {
 
 constexpr uint32_t kPsuBaud = 115200;
 constexpr uint32_t kUsbBaud = 115200;
-constexpr uint32_t kWifiConnectTimeoutMs = 12000;
+constexpr uint32_t kWifiConnectTimeoutMs = 20000;
+constexpr uint32_t kWifiRetryIntervalMs = 30000;
 constexpr uint32_t kPsuReplyTimeoutMs = 700;
 constexpr uint32_t kModbusSilentIntervalUs = 1000;
 constexpr size_t kMaximumFrameBytes = 255;
@@ -37,7 +38,11 @@ Preferences preferences;
 bool setupPortalActive = false;
 bool mdnsActive = false;
 bool otaEnabled = false;
+bool arduinoOtaStarted = false;
 uint32_t restartAt = 0;
+uint32_t nextWifiRetryAt = 0;
+String wifiSsid;
+String wifiPassword;
 String bridgeToken;
 std::vector<uint8_t> modbusRequestBody;
 std::vector<uint8_t> lastPsuReply;
@@ -51,7 +56,7 @@ const char kSetupPage[] PROGMEM = R"HTML(
 :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#071116;color:#e8f2f3}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;box-sizing:border-box}.card{width:min(440px,100%);padding:28px;border:1px solid #1d3941;border-radius:18px;background:#0b1a21;box-shadow:0 20px 60px #0007}p{color:#91a8af;line-height:1.5}label{display:grid;gap:7px;margin:16px 0;font-size:.85rem;color:#b9c9cd}input{border:1px solid #29464e;border-radius:10px;padding:12px;background:#071116;color:#fff;font:inherit}button{width:100%;border:0;border-radius:10px;padding:13px;background:#5ee7d0;color:#041512;font-weight:800;cursor:pointer}.meta{margin-top:18px;padding-top:16px;border-top:1px solid #193039;font-size:.78rem}code{color:#ffb270}</style></head>
 <body><main class="card"><h1>SK150C Wi-Fi bridge</h1><p>Enter the Wi-Fi details the bridge should use. They are stored only on this ESP32-C3.</p>
 <form method="post" action="/api/wifi"><label>Wi-Fi name<input name="ssid" maxlength="32" required></label><label>Password<input name="password" type="password" maxlength="64"></label><label>Bridge and firmware-update token<input name="token" type="password" minlength="12" maxlength="64" required placeholder="At least 12 characters"></label><button type="submit">Save and restart</button></form>
-<p class="meta">PSU UART: <code>RX GPIO5</code> · <code>TX GPIO4</code> · 115200 baud<br>Bridge address after connection: <code>http://sk150c.local</code><br>Future firmware updates: <code>http://sk150c.local/update</code></p></main></body></html>
+<p class="meta">PSU UART: <code>RX GPIO5</code> · <code>TX GPIO4</code> · 115200 baud<br>Bridge address after connection: <code>http://sk150c.local</code><br>Recovery firmware updates: <code>/update</code> (also available from setup mode)</p></main></body></html>
 )HTML";
 
 const char kUpdatePage[] PROGMEM = R"HTML(
@@ -210,7 +215,10 @@ void handleStatus() {
   body += WiFi.status() == WL_CONNECTED ? "true" : "false";
   body += ",\"ip\":\"";
   body += WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
-  body += "\",\"uart\":{\"rx\":" + String(PSU_UART_RX_PIN) + ",\"tx\":" + String(PSU_UART_TX_PIN) + ",\"baud\":115200},\"wifiPowerDbm\":8.5,\"ota\":";
+  body += "\",\"setupMode\":";
+  body += setupPortalActive ? "true" : "false";
+  body += ",\"wifiStatus\":" + String(static_cast<int>(WiFi.status()));
+  body += ",\"uart\":{\"rx\":" + String(PSU_UART_RX_PIN) + ",\"tx\":" + String(PSU_UART_TX_PIN) + ",\"baud\":115200},\"wifiPowerDbm\":8.5,\"ota\":";
   body += otaEnabled ? "true" : "false";
   body += ",\"updatePath\":\"/update\"}";
   sendText(200, "application/json", body);
@@ -277,7 +285,40 @@ void startSetupPortal() {
   WiFi.softAP(kSetupSsid);
   dnsServer.start(53, "*", WiFi.softAPIP());
   setupPortalActive = true;
+  nextWifiRetryAt = millis() + kWifiRetryIntervalMs;
   Serial.printf("Setup Wi-Fi: connect to %s and open http://%s\n", kSetupSsid, WiFi.softAPIP().toString().c_str());
+}
+
+void startConnectedServices() {
+  if (setupPortalActive) {
+    dnsServer.stop();
+    WiFi.softAPdisconnect(true);
+    setupPortalActive = false;
+  }
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  if (!mdnsActive) {
+    mdnsActive = MDNS.begin(kHostname);
+    if (mdnsActive) MDNS.addService("http", "tcp", 80);
+  }
+  if (otaEnabled && !arduinoOtaStarted) {
+    ArduinoOTA.setHostname(kHostname);
+    ArduinoOTA.setPassword(bridgeToken.c_str());
+    ArduinoOTA.begin();
+    arduinoOtaStarted = true;
+  }
+  Serial.printf("Bridge ready: http://%s.local (%s)\n", kHostname, WiFi.localIP().toString().c_str());
+}
+
+void retryWifiIfNeeded() {
+  if (!setupPortalActive) return;
+  if (WiFi.status() == WL_CONNECTED) {
+    startConnectedServices();
+    return;
+  }
+  if (wifiSsid.isEmpty() || static_cast<int32_t>(millis() - nextWifiRetryAt) < 0) return;
+  Serial.printf("Retrying Wi-Fi connection to %s\n", wifiSsid.c_str());
+  WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
+  nextWifiRetryAt = millis() + kWifiRetryIntervalMs;
 }
 
 void configureWebServer() {
@@ -310,31 +351,24 @@ void configureWebServer() {
 
 void connectWifi() {
   preferences.begin("sk150c", false);
-  const String ssid = preferences.isKey("ssid") ? preferences.getString("ssid") : String();
-  const String password = preferences.isKey("password") ? preferences.getString("password") : String();
+  wifiSsid = preferences.isKey("ssid") ? preferences.getString("ssid") : String();
+  wifiPassword = preferences.isKey("password") ? preferences.getString("password") : String();
   bridgeToken = preferences.isKey("token") ? preferences.getString("token") : String();
   preferences.end();
+  otaEnabled = !bridgeToken.isEmpty();
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(kHostname);
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
-  if (!ssid.isEmpty()) {
-    WiFi.begin(ssid.c_str(), password.c_str());
+  WiFi.setAutoReconnect(true);
+  if (!wifiSsid.isEmpty()) {
+    WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
     const uint32_t started = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - started < kWifiConnectTimeoutMs) delay(100);
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    WiFi.setTxPower(WIFI_POWER_8_5dBm);
-    mdnsActive = MDNS.begin(kHostname);
-    if (mdnsActive) MDNS.addService("http", "tcp", 80);
-    otaEnabled = !bridgeToken.isEmpty();
-    if (otaEnabled) {
-      ArduinoOTA.setHostname(kHostname);
-      ArduinoOTA.setPassword(bridgeToken.c_str());
-      ArduinoOTA.begin();
-    }
-    Serial.printf("Bridge ready: http://%s.local (%s)\n", kHostname, WiFi.localIP().toString().c_str());
+    startConnectedServices();
   } else {
     startSetupPortal();
   }
@@ -353,7 +387,8 @@ void setup() {
 
 void loop() {
   if (setupPortalActive) dnsServer.processNextRequest();
-  if (otaEnabled && WiFi.status() == WL_CONNECTED) ArduinoOTA.handle();
+  retryWifiIfNeeded();
+  if (arduinoOtaStarted && WiFi.status() == WL_CONNECTED) ArduinoOTA.handle();
   server.handleClient();
   if (restartAt != 0 && static_cast<int32_t>(millis() - restartAt) >= 0) ESP.restart();
   delay(1);
