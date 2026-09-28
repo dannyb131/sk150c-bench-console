@@ -69,7 +69,7 @@ Install [Visual Studio Code](https://code.visualstudio.com/) with the [PlatformI
 pio run --target upload
 ```
 
-Use PlatformIO for the first installation so the correct bootloader and partition table are installed. The included `esp32-bridge/firmware-update.bin` is an application image for the browser updater after that first installation; it is not a complete factory image for a blank board.
+Use PlatformIO for the first installation so the correct bootloader and partition table are installed. The included `esp32-bridge/firmware-update.bin` (token protected) and `esp32-bridge/firmware-open.bin` (token free) are application images for later browser updates; neither is a complete factory image for a blank board.
 
 ### 2. Configure Wi-Fi and security
 
@@ -77,7 +77,7 @@ Use PlatformIO for the first installation so the correct bootloader and partitio
 2. Join the temporary **SK150C-Setup** Wi-Fi network.
 3. Open `http://192.168.4.1`.
 4. Enter the 2.4 GHz Wi-Fi name and password.
-5. Create a bridge token of at least 12 characters and keep it somewhere safe.
+5. For the standard secure build, create a bridge token of at least 12 characters and keep it somewhere safe. The optional `esp32-c3-open` build ignores this field.
 6. Save. The bridge restarts and joins the selected network.
 
 The bridge will normally be available at `http://sk150c.local`. Its status endpoint is `http://sk150c.local/api/status`.
@@ -101,10 +101,10 @@ In the dashboard:
 1. Open **Device**.
 2. Select **ESP32 HTTP bridge**.
 3. Set the address to `http://sk150c.local`.
-4. Enter the same bridge token.
+4. Enter the same bridge token, or leave **Session token** blank when using the token-free build.
 5. Select **Save connection settings**, then **Connect PSU**.
 
-The token is kept in browser session storage rather than embedded in the project files.
+The token is kept in browser memory rather than embedded in the project files. The token-free firmware is intended only for a private, trusted network: anyone who can reach it can control the PSU or replace its firmware.
 
 ## Quick start: direct USB
 
@@ -119,13 +119,13 @@ The protocol is Modbus RTU at 115200 baud, 8 data bits, no parity, one stop bit,
 
 After the initial USB installation, the enclosure does not need to be opened again:
 
-1. Build a new image with `pio run` inside `esp32-bridge`.
+1. Build the secure image with `pio run`, or the token-free image with `pio run --environment esp32-c3-open`, inside `esp32-bridge`.
 2. Open `http://sk150c.local/update`.
-3. Select `.pio/build/esp32-c3/firmware.bin`.
-4. Enter the bridge token and upload.
+3. Select `.pio/build/esp32-c3/firmware.bin` for the secure build or `.pio/build/esp32-c3-open/firmware.bin` for the token-free build.
+4. Enter the bridge token for the secure build. Leave it blank for the token-free build, then upload.
 5. Wait for the bridge to restart before reconnecting the dashboard.
 
-PlatformIO/Arduino OTA is also enabled on port 3232 and uses the same token as its password.
+PlatformIO/Arduino OTA is also enabled on port 3232. The secure build uses the bridge token as its password; the token-free build has no OTA password.
 
 To change the token, open `http://sk150c.local/setup`, re-enter the Wi-Fi details, choose a new token and save. Update the dashboard's **Session token** afterward.
 
@@ -133,7 +133,7 @@ To change the token, open `http://sk150c.local/setup`, re-enter the Wi-Fi detail
 
 ### `ESP32 bridge returned HTTP 401`
 
-The dashboard token does not match the token stored on the bridge. Reset it at `http://sk150c.local/setup`.
+The dashboard token does not match the token stored on a secure bridge. Reset it at `http://sk150c.local/setup`, or deliberately install the token-free build and leave **Session token** blank.
 
 ### `The ESP32 received no serial bytes`
 
@@ -154,7 +154,7 @@ Try the IP address shown by your router or the USB serial monitor. Ensure the co
 
 The bridge could not join the saved network. Test with a nearby phone hotspot configured for 2.4 GHz/compatibility mode and a simple temporary name and password. If that works, check the normal router for WPA3-only security, weak signal, band steering, a hidden SSID or an unsupported 2.4 GHz channel.
 
-Current firmware keeps the setup access point available while retrying the saved network every 30 seconds. With a token configured, recovery firmware updates are also available while connected to **SK150C-Setup**: open `http://192.168.4.1/update`, enter the existing bridge token and upload `esp32-bridge/firmware-update.bin`.
+Current firmware keeps the setup access point available while retrying the saved network every 30 seconds. Recovery firmware updates are also available while connected to **SK150C-Setup**: open `http://192.168.4.1/update`, then upload `esp32-bridge/firmware-update.bin` with the existing token or upload `esp32-bridge/firmware-open.bin` without one when the installed build is already token free.
 
 ### Readings are exactly 10x too large
 

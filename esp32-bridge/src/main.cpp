@@ -18,6 +18,10 @@
 #define PSU_UART_TX_PIN 4
 #endif
 
+#ifndef BRIDGE_AUTH_REQUIRED
+#define BRIDGE_AUTH_REQUIRED 1
+#endif
+
 namespace {
 
 constexpr uint32_t kPsuBaud = 115200;
@@ -27,6 +31,7 @@ constexpr uint32_t kWifiRetryIntervalMs = 30000;
 constexpr uint32_t kPsuReplyTimeoutMs = 700;
 constexpr uint32_t kModbusSilentIntervalUs = 1000;
 constexpr size_t kMaximumFrameBytes = 255;
+constexpr bool kBridgeAuthRequired = BRIDGE_AUTH_REQUIRED != 0;
 constexpr char kHostname[] = "sk150c";
 constexpr char kSetupSsid[] = "SK150C-Setup";
 
@@ -55,7 +60,7 @@ const char kSetupPage[] PROGMEM = R"HTML(
 <title>SK150C bridge setup</title><style>
 :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#071116;color:#e8f2f3}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;box-sizing:border-box}.card{width:min(440px,100%);padding:28px;border:1px solid #1d3941;border-radius:18px;background:#0b1a21;box-shadow:0 20px 60px #0007}p{color:#91a8af;line-height:1.5}label{display:grid;gap:7px;margin:16px 0;font-size:.85rem;color:#b9c9cd}input{border:1px solid #29464e;border-radius:10px;padding:12px;background:#071116;color:#fff;font:inherit}button{width:100%;border:0;border-radius:10px;padding:13px;background:#5ee7d0;color:#041512;font-weight:800;cursor:pointer}.meta{margin-top:18px;padding-top:16px;border-top:1px solid #193039;font-size:.78rem}code{color:#ffb270}</style></head>
 <body><main class="card"><h1>SK150C Wi-Fi bridge</h1><p>Enter the Wi-Fi details the bridge should use. They are stored only on this ESP32-C3.</p>
-<form method="post" action="/api/wifi"><label>Wi-Fi name<input name="ssid" maxlength="32" required></label><label>Password<input name="password" type="password" maxlength="64"></label><label>Bridge and firmware-update token<input name="token" type="password" minlength="12" maxlength="64" required placeholder="At least 12 characters"></label><button type="submit">Save and restart</button></form>
+<form method="post" action="/api/wifi"><label>Wi-Fi name<input name="ssid" maxlength="32" required></label><label>Password<input name="password" type="password" maxlength="64"></label><label>Bridge and firmware-update token<input name="token" type="password" maxlength="64" placeholder="At least 12 characters when authentication is enabled"></label><button type="submit">Save and restart</button></form>
 <p class="meta">PSU UART: <code>RX GPIO5</code> · <code>TX GPIO4</code> · 115200 baud<br>Bridge address after connection: <code>http://sk150c.local</code><br>Recovery firmware updates: <code>/update</code> (also available from setup mode)</p></main></body></html>
 )HTML";
 
@@ -100,11 +105,13 @@ void sendText(int status, const String& contentType, const String& body) {
 }
 
 bool requestIsAuthorised() {
+  if (!kBridgeAuthRequired) return true;
   if (bridgeToken.isEmpty()) return true;
   return server.header("Authorization") == String("Bearer ") + bridgeToken;
 }
 
 bool updateRequestIsAuthorised() {
+  if (!kBridgeAuthRequired) return true;
   return !bridgeToken.isEmpty() && server.header("Authorization") == String("Bearer ") + bridgeToken;
 }
 
@@ -218,6 +225,8 @@ void handleStatus() {
   body += "\",\"setupMode\":";
   body += setupPortalActive ? "true" : "false";
   body += ",\"wifiStatus\":" + String(static_cast<int>(WiFi.status()));
+  body += ",\"authRequired\":";
+  body += kBridgeAuthRequired ? "true" : "false";
   body += ",\"uart\":{\"rx\":" + String(PSU_UART_RX_PIN) + ",\"tx\":" + String(PSU_UART_TX_PIN) + ",\"baud\":115200},\"wifiPowerDbm\":19.5,\"ota\":";
   body += otaEnabled ? "true" : "false";
   body += ",\"updatePath\":\"/update\"}";
@@ -265,9 +274,10 @@ void handleFirmwareUpdateResult() {
 
 void handleSaveWifi() {
   const String ssid = server.arg("ssid");
-  const String token = server.arg("token");
-  if (ssid.isEmpty() || token.length() < 12) {
-    sendText(400, "text/plain", "Wi-Fi name and a bridge token of at least 12 characters are required.");
+  String token = server.arg("token");
+  token.trim();
+  if (ssid.isEmpty() || (kBridgeAuthRequired && token.length() < 12)) {
+    sendText(400, "text/plain", "A Wi-Fi name and, when authentication is enabled, a bridge token of at least 12 characters are required.");
     return;
   }
   preferences.begin("sk150c", false);
@@ -302,7 +312,7 @@ void startConnectedServices() {
   }
   if (otaEnabled && !arduinoOtaStarted) {
     ArduinoOTA.setHostname(kHostname);
-    ArduinoOTA.setPassword(bridgeToken.c_str());
+    if (kBridgeAuthRequired) ArduinoOTA.setPassword(bridgeToken.c_str());
     ArduinoOTA.begin();
     arduinoOtaStarted = true;
   }
@@ -355,7 +365,7 @@ void connectWifi() {
   wifiPassword = preferences.isKey("password") ? preferences.getString("password") : String();
   bridgeToken = preferences.isKey("token") ? preferences.getString("token") : String();
   preferences.end();
-  otaEnabled = !bridgeToken.isEmpty();
+  otaEnabled = !kBridgeAuthRequired || !bridgeToken.isEmpty();
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(kHostname);
